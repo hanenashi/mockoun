@@ -6,7 +6,7 @@ import { ENV_USER, ENV_CLUB } from './env_config.js';
 
 // Your Firebase config
 const firebaseConfig = {
-  apiKey: "AIzaSyA1_4kUExI_Ra7L-Dk7qGhoxai7Xc2cdWY",
+  apiKey: "AIzaSyA1_4kUExI_Ra7L-Dk7qGhoxai7Xc2caaX",
   authDomain: "murkypond-vault-fc61c.firebaseapp.com",
   projectId: "murkypond-vault-fc61c",
   storageBucket: "murkypond-vault-fc61c.firebasestorage.app",
