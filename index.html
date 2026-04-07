@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mockoun GUI Alpha</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans antialiased p-6">
+
+    <div class="max-w-3xl mx-auto">
+        <header class="mb-8 flex justify-between items-center bg-white p-4 rounded-lg shadow">
+            <div>
+                <h1 class="text-2xl font-bold text-blue-600">Mockoun <span class="text-sm text-gray-400 font-normal">v0.1 Alpha</span></h1>
+				<div id="clubNameDisplay" class="text-sm font-mono text-gray-500">Club: Loading...</div>            </div>
+            <button id="markReadBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold py-1 px-3 rounded transition shadow-sm">
+                ✓ Označit jako přečtené
+            </button>
+        </header>
+
+        <div class="bg-white p-4 rounded-lg shadow mb-6">
+            <textarea id="newPostText" class="w-full p-3 border border-gray-300 rounded mb-3 focus:outline-none focus:ring-2 focus:ring-blue-400" rows="3" placeholder="Napište něco..."></textarea>
+            <div class="flex justify-end">
+                <button id="sendPostBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition shadow-sm">
+                    Odeslat (WIP)
+                </button>
+            </div>
+        </div>
+
+        <div id="feedContainer" class="space-y-4">
+            <div class="text-center text-gray-500 animate-pulse py-8">Připojuji k Vaultu...</div>
+        </div>
+    </div>
+
+	<script type="module" src="app.js?v=2"></script>	
+	
+</body>
+</html>

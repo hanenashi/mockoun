@@ -1,0 +1,8 @@
+# Mockoun Server
+Flask==3.0.2
+Werkzeug==3.0.1
+
+# MurkyPond Harvester
+playwright>=1.42.0
+firebase-admin>=6.5.0
+python-dotenv>=1.0.1
