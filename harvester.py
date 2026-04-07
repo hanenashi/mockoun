@@ -8,7 +8,6 @@ from firebase_admin import credentials, firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
 # ==========================================
@@ -22,7 +21,7 @@ CONFIG = {
     "OKOUN_USER": os.getenv("OKOUN_USER", "blaznik"),
     "OKOUN_PASS": os.getenv("OKOUN_PASS", "dummy_pass"), 
     "PAGES_TO_SCRAPE": 3,   
-    "HEADLESS": False,  # <-- Set to True! Runs completely invisibly
+    "HEADLESS": True,  
     "KEEP_BROWSER_OPEN": True,
 }
 
@@ -39,13 +38,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-NOISE_BLOCKLIST = [
-    "xgemius", "gemius.pl", "googletagmanager", "google-analytics", "hit.gemius.pl", "lsget"
-]
+NOISE_BLOCKLIST = ["xgemius", "gemius.pl", "googletagmanager", "google-analytics", "hit.gemius.pl", "lsget"]
 
-# ==========================================
-# PLAYWRIGHT CORE
-# ==========================================
 def launch_context(headless: bool = False) -> tuple[Any, BrowserContext, Page]:
     os.makedirs(CONFIG["USER_DATA_DIR"], exist_ok=True)
     pw = sync_playwright().start()
@@ -83,18 +77,12 @@ def teardown(pw, context):
     try: pw.stop()
     except: pass
 
-# ==========================================
-# FIREBASE CORE
-# ==========================================
 def init_firebase():
     logger.info("Initializing Firebase Vault...")
     cred = credentials.Certificate(CONFIG["FIREBASE_KEY_PATH"])
     firebase_admin.initialize_app(cred)
     return firestore.client()
 
-# ==========================================
-# APP LOGIC
-# ==========================================
 def ensure_login(page):
     logger.info("Checking authentication status...")
     page.goto(f"{CONFIG['BASE_URL']}/myBoards.jsp", wait_until="domcontentloaded")
@@ -113,21 +101,20 @@ def ensure_login(page):
     else:
         logger.info("Session active. Already logged in.")
 
+# ==========================================
+# ---> THE NEW DIRECT API PIPELINE <---
+# ==========================================
 def process_outbox(page, db):
-    # Using the updated Firestore syntax to keep logs clean
-    from google.cloud.firestore_v1.base_query import FieldFilter
     outbox_ref = db.collection('outbox').where(filter=FieldFilter('status', '==', 'pending')).stream()
-    
     messages = list(outbox_ref)
-    if not messages:
-        return # Keep console quiet during the infinite loop
+    
+    if not messages: return 
 
     for doc in messages:
         msg = doc.to_dict()
         logger.info(f"Found pending message for {msg['club_id']}! Preparing to post...")
         
         try:
-            # 1. Navigate to the club to get a fresh CSRF security token
             url = f"{CONFIG['BASE_URL']}/boards/{msg['club_id']}"
             page.goto(url, wait_until="domcontentloaded")
             
@@ -141,28 +128,26 @@ def process_outbox(page, db):
                 };
             }""")
             
-            if not form_data.get('boardId') or not form_data.get('tukan'):
+            if not form_data or not form_data.get('boardId') or not form_data.get('tukan'):
                 raise Exception("Could not find required security tokens (boardId or tukan) on the page.")
 
-            # 2. Build the exact HTTP POST payload the server expects
+            # Build the exact HTTP POST payload the server expects
             payload = {
                 "boardId": form_data["boardId"],
                 "title": "",
                 "body": msg['text'],
                 "bodyType": "html",
                 "tukan": form_data["tukan"],
-                "post": "Odeslat"  # Mimics the physical button click signature
+                "post": "Odeslat"  # <--- THIS IS THE MAGIC KEY WE WERE MISSING
             }
 
             logger.info("Bypassing UI entirely: Firing raw HTTP POST request...")
-            
-            # 3. Fire the request securely using the browser's active session cookies
             response = page.request.post(f"{CONFIG['BASE_URL']}/postArticle.do", form=payload)
             
             if not response.ok:
                 raise Exception(f"Server rejected the post. HTTP Status: {response.status}")
             
-            # 4. Wait a second, then reload the page so the upcoming scrape catches the new post
+            # Wait a second, then reload the page so the scrape catches the new post
             time.sleep(1)
             page.reload(wait_until="domcontentloaded")
             
@@ -171,13 +156,12 @@ def process_outbox(page, db):
             logger.info("Message successfully posted via direct API and marked as 'sent'.")
             
         except Exception as e:
-            logger.error(f"Failed to post message: {e}")            
-            
+            logger.error(f"Failed to post message: {e}")
+
 def scrape_club(page, club_id: str, pages_to_scrape: int) -> List[Dict]:
     url = f"{CONFIG['BASE_URL']}/boards/{club_id}"
     page.goto(url, wait_until="domcontentloaded")
     
-    # Bypass Okoun Unread Redirect
     try:
         newest_link = page.locator("a:has-text('nejnovější')").first
         if newest_link.count() > 0:
@@ -214,7 +198,6 @@ def scrape_club(page, club_id: str, pages_to_scrape: int) -> List[Dict]:
             });
             return results;
         }""")
-        
         all_posts.extend(posts_on_page)
 
         if current_page < pages_to_scrape:
@@ -234,10 +217,8 @@ def scrape_club(page, club_id: str, pages_to_scrape: int) -> List[Dict]:
 
 def push_to_vault(db, club_id: str, posts: List[Dict]):
     if not posts: return
-
     collection_ref = db.collection('clubs').document(club_id).collection('posts')
     chunks = [posts[i:i + 450] for i in range(0, len(posts), 450)]
-    
     for chunk in chunks:
         batch = db.batch()
         for post in chunk:
@@ -245,31 +226,19 @@ def push_to_vault(db, club_id: str, posts: List[Dict]):
             batch.set(doc_ref, post, merge=True)
         batch.commit()
 
-# ==========================================
-# THE INFINITE LOOP
-# ==========================================
 def run_harvester():
     db = init_firebase()
-    
     logger.info("Booting Playwright Engine (PIKER Engine) in HEADLESS mode...")
     pw, context, page = launch_context(headless=CONFIG["HEADLESS"])
     
     try:
         ensure_login(page)
-        
         logger.info("🔄 Starting infinite harvest loop! Press Ctrl+C in this terminal to stop.")
         
         while True:
-            # 1. Process Outbox: Send any pending messages
             process_outbox(page, db)
-            
-            # 2. Scrape: Pull down the latest posts
             posts = scrape_club(page, CONFIG["TARGET_CLUB_ID"], CONFIG["PAGES_TO_SCRAPE"])
-            
-            # 3. Sync: Push to Firestore
             push_to_vault(db, CONFIG["TARGET_CLUB_ID"], posts)
-            
-            # 4. Sleep: Wait 10 seconds before polling again
             time.sleep(10)
             
     except KeyboardInterrupt:
