@@ -1,54 +1,35 @@
-# Mockoun
+# MurkyPond / Mockoun Ecosystem
 
 **Repository:** [https://github.com/hanenashi/mockoun](https://github.com/hanenashi/mockoun)
 
 ## 📌 TL;DR
-Mockoun is a lightweight local sandbox designed to mimic the legacy HTML structure and endpoints of the okoun.cz message board. It allows developers to safely build, test, and iterate on scraping tools, automated proxies, and modern decoupled GUIs without hammering the live production servers, triggering rate limits, or risking IP bans. 
+What started as **Mockoun** (a lightweight local sandbox to mimic okoun.cz endpoints) has evolved into the **MurkyPond Ecosystem**: a fully decoupled, modern, real-time web architecture layered over a 20-year-old legacy message board. 
 
-It's the dummy target for the MurkyPond harvester.
+It allows users to browse and post to Okoun via a lightning-fast, mobile-friendly Tailwind/React-style GUI, completely bypassing Okoun's legacy frontend, CORS restrictions, and CSS traps.
 
-## ⚙️ Technical Details
-* **Core Technology:** Lightweight Python web server (Flask).
-* **Architecture:** In-memory state mimicking Okoun's database to allow for rapid read/write testing during development.
-* **Mocked Endpoints:**
-  * `/myBoards.jsp`: Replicates the exact `form.login` structure and handles dummy session cookies to test authentication logic.
-  * `/boards/{club_id}`: Generates the legacy DOM structure expected by headless browsers (`div.item[id^='article-']`, `span.user`, `div.content`).
-* **Pagination Simulation:** Dynamically generates `a.older` links to test scraper loops and stopping conditions.
+## 🏗️ Architecture Overview
 
----
+The system is split into four distinct, synchronized components:
 
-## 📋 TODO List
+1. **The Sandbox (Mockoun Backend)**
+   * *Tech:* Python + Flask.
+   * *Role:* A local dummy server (`localhost:5000`) that safely replicates Okoun's DOM structure, pagination, and `/post` endpoints for risk-free testing without triggering production IP bans.
+2. **The Engine (MurkyPond Harvester)**
+   * *Tech:* Python + Playwright.
+   * *Role:* A headless background daemon. It continuously scrapes the target club, converts the nested HTML DOM into clean JSON, and syncs it to the cloud. It also acts as the "Postman," picking up pending messages from the cloud and firing direct API POST requests to Okoun's backend using extracted `tukan` CSRF tokens.
+3. **The Vault (Firebase Firestore)**
+   * *Tech:* Google Cloud NoSQL Database.
+   * *Role:* The central brain. Holds real-time syncs of scraped posts (`clubs`), cross-device read states (`users`), and pending outbound messages (`outbox`).
+4. **The Modern GUI (Alpha Web App)**
+   * *Tech:* HTML, Vanilla JS, Tailwind CSS.
+   * *Role:* The serverless frontend. Connected directly to Firestore via websockets, it renders posts instantly, tracks read states, and drops new posts into the "Outbox" queue for the Harvester to deliver.
 
-- [ ] Initialize Python environment and `requirements.txt`
-- [ ] Create base Flask application skeleton (`app.py`)
-- [ ] Implement the `/myBoards.jsp` GET (return HTML form) and POST (set dummy cookie) routes
-- [ ] Implement the `/boards/<club_id>` GET route with dynamic legacy HTML generation
-- [ ] Add basic pagination logic (append `a.older` if mock page < max pages)
-- [ ] Add an array of dummy posts to act as the in-memory database
-- [ ] Implement a POST route to accept new messages and append them to the in-memory database
+## 🚀 How to Run
 
----
-
-## 🗺️ Roadmap & Brainstorming
-
-### Pre-Alpha: The "Truman Show" Phase
-**Goal:** Trick the existing harvester into thinking it's on the real site.
-* Get the Flask server running locally on port 5000.
-* Point the Playwright engine to `127.0.0.1:5000`.
-* Ensure the harvester can successfully "log in", navigate pages, scrape the mocked JSON, and push it to Firestore without throwing a single DOM error.
-
-### Alpha: The Two-Way Loop
-**Goal:** Establish full read/write capabilities using the custom modern GUI.
-* Build a mock `/post` endpoint in Mockoun that accepts form-encoded data.
-* Develop the first draft of the new modern GUI frontend.
-* Connect the new GUI directly to Firestore (Read).
-* Wire the new GUI to send post requests to the Mockoun `/post` endpoint (Write).
-* Verify that sending a message from the new GUI hits Mockoun, which then gets scraped by the harvester, synced to Firestore, and instantly appears on the new GUI.
-
-### Beta: The Live Switch
-**Goal:** Unplug from the Matrix and connect to the real Okoun.cz.
-* Swap the harvester URLs from `localhost` back to `https://www.okoun.cz`.
-* Create the actual proxy middleware (or Cloud Function) that will handle incoming POST requests from the new GUI and forward them to the live Okoun servers using Playwright/Requests.
-* Implement robust error handling for real-world scenarios: 502 Bad Gateway errors from Okoun, session timeouts, and stale cookies.
-* Optimize the harvester's loop frequency to respect Okoun's actual server load.
-* 
+1. **Configure `.env`**
+   Create a `.env` file in the root directory with your target credentials:
+   ```env
+   OKOUN_BASE_URL=[https://www.okoun.cz](https://www.okoun.cz)
+   OKOUN_USER=your_username
+   OKOUN_PASS=your_password
+   OKOUN_CLUB=nepotrebny_pokus
