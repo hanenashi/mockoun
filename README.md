@@ -33,3 +33,36 @@ The system is split into four distinct, synchronized components:
    OKOUN_USER=your_username
    OKOUN_PASS=your_password
    OKOUN_CLUB=nepotrebny_pokus
+   ```
+
+2. **Boot the Matrix**
+   Run the `run.bat` script. This executes the initialization sequence:
+   * **[0/3] Python Bridge:** Reads your `.env` and generates a Javascript config for the frontend.
+   * **[1/3] Mockoun Backend:** Spins up the local Flask sandbox (Optional, if targeting live site).
+   * **[2/3] Frontend UI:** Starts the Python HTTP server and opens your browser to the new GUI.
+   * **[3/3] Harvester Daemon:** Launches Playwright in headless mode to begin the infinite Scrape/Sync/Post loop.
+
+---
+
+## ✅ Changelog & Completed Milestones
+
+- [x] **Pre-Alpha (The Truman Show):** Built Flask sandbox with dummy `/myBoards.jsp` and pagination routing.
+- [x] **Alpha (The Two-Way Loop):** Established read/write to Firestore. Built the Tailwind GUI with unread badges and cross-device sync.
+- [x] **The Outbox Pattern:** Solved CORS by turning Firebase into a messaging queue. GUI drops to `outbox`, Python picks up and delivers.
+- [x] **The Bridge:** Dynamically inject `.env` configurations into the browser sandbox via pre-boot Python script.
+- [x] **The API Strike (Beta Breakthrough):** Bypassed Okoun's CSS invisibility traps and legacy YUI button scripts by extracting the `tukan` token and injecting raw HTTP POST requests directly into `postArticle.do`.
+
+---
+
+## 🗺️ Roadmap: V1.0 Release
+
+### Media & Formatting
+- [ ] **Image Parsing:** Update the Harvester to properly extract image URLs from legacy Okoun tags and render them natively in the Tailwind GUI.
+- [ ] **Markdown Support:** Ensure formatting translates cleanly between the modern GUI and Okoun's legacy parsers.
+
+### Interaction
+- [ ] **Threaded Replies:** Wire up the "Odpovědět" UI button to pass a `reply_to_id` into the Outbox. Update the Harvester's API payload to correctly link replies on the Okoun backend.
+- [ ] **Club Switching:** Allow dynamic navigation between multiple clubs via the GUI without restarting the Harvester.
+
+### Deployment
+- [ ] **Cloud / Pi Hosting:** Migrate the Harvester daemon from the local desktop to a Raspberry Pi or cheap cloud VPS so the engine runs 24/7 without needing an open terminal.
